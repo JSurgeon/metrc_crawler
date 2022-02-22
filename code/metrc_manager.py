@@ -8,6 +8,7 @@ import datetime
 from verification import USERNAME, PW
 import traceback
 import pandas as pd
+import itertools
 
 URL = "https://or.metrc.com/log-in?ReturnUrl=%2f"
 class Metrc_Manager:
@@ -374,6 +375,7 @@ class Metrc_Manager:
                 # do we then need to wait for the user to make a selection (IE time.sleep)? In that case, user could just tell ...
                 # ... the program continue when they are ready
 
+
     def adjust_package(self, tag, amount, unit, reason, date, confirm = False):
         '''
         Adjusts tag by amount passed in parameters
@@ -432,12 +434,16 @@ class Metrc_Manager:
             # 1. tag_search needs to return the new tag, which waste_tag will return as well.
 
     def waste_tags_multiple_packages(self, tags, item):
-        for tag in tags:
-            self.waste_tag(tag, item)
-            time.sleep(1)
+        ''''''
+        # find new package button and click
+        self.browser.find_by_css('button[class="btn shadow js-toolbarbutton-1"]').click()
+        time.sleep(7)
+
+
+
 
     def zero_wasted(self, tag):
-
+        #   NEED TO REFACTOR TO USE ADJUST MULTIPLE
         # find tag and wait 1/2 second
         self.tag_search(tag)
         time.sleep(.5)
@@ -472,23 +478,6 @@ class Metrc_Manager:
             time.sleep(.75)
 
         return skipped
-            
-    def abc1_kill(self, items):
-        grabbed_values = []
-        for item in items:
-            self.item_search(item)
-            try:
-                info = self.grab_info()
-                print(info["tag"], info["item"])
-                response = input("add to list? y/n ")
-                if response =='y':
-                    grabbed_values.append((info["tag"], info["item"]))
-
-            except:
-                print(f'{item} not found')
-                continue
-
-        return grabbed_values
 
     def qc_production_tag(self, tags, amount, loc):
         '''
@@ -577,7 +566,214 @@ class Metrc_Manager:
         # possibly add functionality for varying amounts
         # need functionality for finishing 
         return 1
-         
+
+    def new_package_multi_in(self, tags, item_name, next_avail = True):
+    
+        # find new package button and click
+        self.browser.find_by_css('button[class="btn shadow js-toolbarbutton-1"]').click()
+        time.sleep(15)
+
+        # add new IN package text boxes
+        plus_btn = self.browser.find_by_css('button[class="btn btn-info btn-mini"]')[1]
+        for i in range(len(tags)-1):
+            plus_btn.click()
+        
+        # fill package tags
+        for i in range(len(tags)):
+            print(f'Entering Tag #{tags[i]}')
+            self.browser.find_by_css(f'input[class="js-validated-element js-typeaheadsearchorder-0-{i} validate[required]"]').fill(tags[i])
+            self.browser.driver.switch_to.active_element.send_keys(Keys.ENTER)
+            
+        # fill template with quantity = 1 to set up remaining weight counter
+        self.browser.find_by_xpath('//*[@id="create-packages_form"]/table/tbody/tr[2]/td[2]/div[1]/div[2]/div/div/input').fill(1)
+        # click TAB
+        self.browser.driver.switch_to.active_element.send_keys(Keys.TAB)
+        
+        # click ENTER
+        self.browser.driver.switch_to.active_element.send_keys(Keys.ENTER)
+
+        # click TAB ---> after you will be ready to select unit
+        self.browser.driver.switch_to.active_element.send_keys(Keys.TAB)
+
+        # SELECT UNIT --> NEEDS TO BE DYNAMIC (ONLY SELECTS GRAMS NOW)
+        for i in range(11):
+        # click ARROW_DOWN 11 times
+            self.browser.driver.switch_to.active_element.send_keys(Keys.ARROW_DOWN)
+        # click TAB
+        self.browser.driver.switch_to.active_element.send_keys(Keys.TAB)
+        
+        # click ENTER
+        self.browser.driver.switch_to.active_element.send_keys(Keys.ENTER)
+        
+        # grab remaining weights
+        remaining = self.browser.find_by_css('strong[class="text-success"]')
+        
+        
+        # create emptying weights (add one to scraped weights)
+        emptying_weights = []
+        for e in remaining:
+            #################
+            #NOT WORKING PROPERLY WITH STRING WITH ',' IN THEM
+            #################
+            temp_str = e.value
+            if "," in temp_str:
+                temp_str = temp_str.replace(",","")
+            value = float(temp_str.split(" ")[0])
+            value += 1
+            time.sleep(.25)
+            emptying_weights.append(value)
+        
+        for i in range(len(emptying_weights)):
+            self.browser.find_by_css(f'input[name="model[0][Ingredients][{i}][Quantity]"]').fill(str(emptying_weights[i]))
+        
+        # click finish checkbox
+        for i in range(len(tags)):
+            try:
+                self.browser.find_by_css(f'input[name="model[0][Ingredients][{i}][FinishPackage]"]').click()
+            except:
+                self.browser.driver.switch_to.active_element.send_keys(Keys.PAGE_DOWN)
+                time.sleep(1)
+                self.browser.find_by_css(f'input[name="model[0][Ingredients][{i}][FinishPackage]"]').click()
+            self.browser.driver.switch_to.active_element.send_keys(Keys.TAB)
+            self.browser.driver.switch_to.active_element.send_keys("2/15/2022")
+            self.browser.driver.switch_to.active_element.send_keys(Keys.ENTER)
+
+        # move page back to top
+        active = self.browser.driver.switch_to.active_element
+        for i in range(20):
+            active.send_keys(Keys.PAGE_UP)
+
+        if next_avail:
+
+            # find tag search button and click
+            self.browser.find_by_css('button[class="js-tagsearch-0 btn js-tagsearch"]').click()
+
+            # wait one second
+            time.sleep(1)
+
+            # find next available tag and click
+            self.browser.find_by_text('CannabisPackage')[0].click()
+
+            # find select button and click
+            self.browser.find_by_css('button[id="entityselector-ok-button"]').click()
+
+        ##################################
+        ##else:    NEED TO ADD FUNCTIONALITY FOR USER-CHOSEN NEW TAG NUMBER
+        ##    # find new tag text and fill with user input
+        ##            # NEED TO ADD CHECK FOR VALID INPUT (IE, DOES THAT NEW TAG EXIST?)
+        ##   # browser.find_by_css('input[class="js-validated-element validate[required] ng-dirty ng-invalid ng-invalid-required"]').fill(input("New Tag Number: "))
+        #################################
+        time.sleep(1)
+        # go to Area text box and fill --> NEEDS TO BE DYNAMIC ONLY DOES "LAB" NOW
+        for i in range(3):
+            self.browser.driver.switch_to.active_element.send_keys(Keys.TAB)
+        self.browser.driver.switch_to.active_element.send_keys("Lab")
+        self.browser.driver.switch_to.active_element.send_keys(Keys.ENTER)
+        # go to Item box and fill
+
+        for i in range(2):
+            self.browser.driver.switch_to.active_element.send_keys(Keys.TAB)    
+        self.browser.driver.switch_to.active_element.send_keys(item_name)
+
+        return 1
+
+    def search_page_histories(self, str_to_search):
+        '''
+        Searches current page's tag's History tabs for string passed
+        '''
+        # find rows
+        body = self.browser.find_by_tag("tbody")
+        rows = body.find_by_css('tr[class="k-master-row"]')
+        rows2 = body.find_by_css('tr[class="k-alt k-master-row"]')
+
+        # find expander buttons and click
+        expanders1 = [element.find_by_css('a[class="k-icon k-i-expand"]') for element in rows]
+        expanders2 = [element.find_by_css('a[class="k-icon k-i-expand"]') for element in rows2]
+        for i in range(len(rows)):
+            try: 
+                expanders1[i].click()
+                expanders2[i].click()
+            except:
+                pass
+        
+        time.sleep(2)
+        # move page back to top
+        active = self.browser.driver.switch_to.active_element
+        for i in range(20):
+            active.send_keys(Keys.PAGE_UP)
+
+        # find all "History" tabs and click
+        x = body.find_by_text("History")
+        for e in x:
+            time.sleep(.25)
+            e.click()    
+
+        # create list of tags in proper order
+        combined_tags_list = []
+        for combination in itertools.zip_longest(rows, rows2):
+            try:
+                if combination[0].value != None:
+                    combined_tags_list.append(combination[0].value[0:24])
+
+                if combination[1].value != None:
+                    combined_tags_list.append(combination[1].value[0:24])
+            except:
+                pass
+        # find which tags that match str_to_search
+        time.sleep(2)
+        tags = []
+        tables = self.browser.find_by_css('table[class="k-selectable"]')
+        for i,v in enumerate(tables[2:(len(tables)-3)]):
+            if i%2 == 0:
+                if str_to_search in v.value:
+                    tags.append(combined_tags_list[int((i+2)/2)-1])
+       
+       
+        # move page back to top
+        active = self.browser.driver.switch_to.active_element
+        for i in range(20):
+            active.send_keys(Keys.PAGE_UP)
+    
+        return tags
+
+    def abc1_kill(self):
+        hits = []
+        abc1_items = [
+        "Agent Orange Fresh Frozen", "Angel Flower - Dream Queen", "Blue Magoo Fresh Frozen", "COOKIES AND CREAM", "Cookies and Cream Fresh Frozen",
+        "dream queen", "Dream Queen Fresh Frozen", "Fresh Frozen Agent Orange", "Fresh Frozen Blue Magoo", "Fresh Frozen Dream Queen",
+        "Fresh Frozen Gorilla Glue", "Fresh Frozen Jack the Ripper", "Fresh Frozen Jagermeister", "Fresh Frozen Lemon Sour Diesel", "Fresh Frozen LSD",
+        "Fresh Frozen Sauce", "Fresh Frozen Sherbert", "Fresh Frozen Sunset", "Fresh Frozen Sunset Sherbert", "gorilla glue", "Gorilla Glue Fresh Frozen", "mango",
+        "MOB BOSS", "sherbert", "Skywalker Fresh Frozen", "Sunset Sherbert Fresh Frozen", "Telos Agent Orange", "Telos Mob Boss"
+        ]
+
+        for item in abc1_items:
+            self.item_search(item)
+            time.sleep(2)
+            hits.append(self.search_page_histories("From: ABC1 (060-1003632ACAB)\n- To: Tozmoz (030-1003980D6B6)"))
+            
+            # move page back to top
+            active = self.browser.driver.switch_to.active_element
+            for i in range(10):
+                active.send_keys(Keys.PAGE_UP)
+            
+        print('Hits\n----')
+        print(hits)
+
+
+    def abc1_search(self, tags):
+        items = []
+
+        for tag in tags:
+            self.tag_search(tag)
+            
+            info = self.grab_info()
+
+            item = info["item"]
+            weight = info["value"]
+            items.append((tag, item, weight))
+
+        return items
+
 ###################################################################################################################################################
 ###################################################################################################################################################
 ###################################################################################################################################################
@@ -589,44 +785,35 @@ time.sleep(3)
 print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
 
 # test class methods
-# metrc_man.waste_tag(24665, "ABC1, Post-Extraction")
 ####################
+#abc1_tags = [13475, 13437, 13435, 13439, 13479, 13450, 13453, 13455, 13458, 13468, 13469, 5308, 5309]
+#res = []
+#[res.append(x) for x in abc1_tags if x not in res]
+#metrc_man.new_package_multi_in(res, "ABC1, Post-E")
 
-abc1_items = [
-    "Agent Orange Fresh Frozen",
- #x   "Angel Flower - Dream Queen",
-    "Blue Magoo Fresh Frozen",
-    "COOKIES AND CREAM",
-    "Cookies and Cream Fresh Frozen",
-  #  "dream queen",
-  #x  "Dream Queen Fresh Frozen",
-    "Fresh Frozen Agent Orange",
-    "Fresh Frozen Blue Magoo",
-  #x  "Fresh Frozen Dream Queen",
-    "Fresh Frozen Gorilla Glue",
-    "Fresh Frozen Jack the Ripper",
-    "Fresh Frozen Jagermeister",
-  #x  "Fresh Frozen Lemon Sour Diesel",
-    "Fresh Frozen LSD",
-    "Fresh Frozen Sauce",
-    "Fresh Frozen Sherbert",
-    "Fresh Frozen Sunset",
-    "Fresh Frozen Sunset Sherbert",
-   # "gorilla glue",    
-   # "Gorilla Glue Fresh Frozen",
-   # "mango",
-   #---------------------
-   # "MOB BOSS",
-  #  "sherbert",
-    "Skywalker Fresh Frozen",
-   # "Sunset Sherbert Fresh Frozen",
-    "Telos Agent Orange",
-    "Telos Mob Boss"
-    ]
+tags = [23696, 23697, 24321, 24269, 24295, 24578, 24299, 24264, 24265, 24588, 24589, 24585, 24681, 24683, 24322, 24329, 24196, 24121, 24307, 24297, 24298, 24038, 24119, 24197, 24080, 24081, 24117, 24622, 24118, 22974, 22863, 22973, 22972, 22852, 22859, 24199, 24017, 22858, 22856, 22975, 22857, 22855, 23695, 23694, 24036, 24037, 24198, 24120]
 
-tags = [24994, 24995, 24996]
-metrc_man.adjust_multi(tags, 1, "Grams", "Waste", "a reason")
+print(f'LENGHT OF TAGS = {len(tags)}')
+
+abcs = metrc_man.abc1_search(tags)
+
+abc_tags = []
+strains = []
+weights = []
+for v in abcs:
+    abc_tags.append(v[0])
+    strains.append(v[1])
+    weights.append(v[2])
+
+abc_df = pd.DataFrame({
+    "Tags" : abc_tags,
+    "Item" : strains,
+    "Weight (g)" : weights
+})
+
+abc_df.to_csv("abc1_strains.csv")
 
 
 print("PROGRAM ENDING IN 15 secs")
 time.sleep(15)
+
