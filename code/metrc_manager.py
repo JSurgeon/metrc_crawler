@@ -465,19 +465,11 @@ class Metrc_Manager:
         # ask for confirmation
         input("Please Submit or Cancel New Package. Press Enter when done\n")
 
-    def zero_multiple_waste(self, tag_list):
-        skipped = []
-        
-        for tag in tag_list:
-            try:
-                self.zero_wasted(tag)
-            except:
-                print(f'skipped {tag}')
-                skipped.append(tag)
-            
-            time.sleep(.75)
+    def zero_multiple_waste(self, tags):
+        zeroes = [0 for i in len(tags)]
+        self.adjust_multi(tags, zeroes, "Pounds", "Waste", "Wasted after 3 days, as accoring to OLCC guidelines")
 
-        return skipped
+        return 1
 
     def qc_production_tag(self, tags, amount, loc):
         '''
@@ -490,11 +482,20 @@ class Metrc_Manager:
             self.new_package(tags[i], amount, loc, prod_batch = prod_name)
         return 1
 
-    def adjust_multi(self, tags, new_amount, unit, reason, reason_note):
+    def adjust_multi(self, tags, new_amounts, unit, reason, reason_note):
         '''
-        Adjusts multiple tags via one Adjust Submission. New Quantity = new_amount
+        Adjusts multiple tags via one Adjust Submission. New Quantity = new_amounts
         Leaves Metrc at packages view
         '''
+        if isinstance(tags, list) != True:
+            raise ValueError(f"tags must be of type list, is {type(tags)}")
+            
+        if isinstance(new_amounts, list) != True:
+            raise ValueError(f"new_amounts must be of type list, is {type(new_amounts)}")
+
+        if len(tags) != len(new_amounts):
+            raise ValueError("tags and new_amounts must be same length")
+
         if unit not in self.unit_dict:
             raise ValueError("Invalid unit passed")
         
@@ -505,60 +506,84 @@ class Metrc_Manager:
         self.browser.find_by_css('button[class="btn shadow js-toolbarbutton-7"]').click()
         time.sleep(10)
         
-        # create sufficient amount of package boxes
-        self.browser.find_by_css('input[class= "span2 ng-pristine ng-valid ng-valid-number ng-valid-min"]').fill(len(tags)-1)
-        time.sleep(1)
-        self.browser.find_by_css('span[class="icon-plus"]').click()
-        time.sleep(1)
+        if len(tags) != 1:
+            # create sufficient amount of package boxes
+            self.browser.find_by_css('input[class= "span2 ng-pristine ng-valid ng-valid-number ng-valid-min"]').fill(len(tags)-1)
+            time.sleep(1)
+            self.browser.find_by_css('span[class="icon-plus"]').click()
+            time.sleep(1)
 
-        self.browser.find_by_css('select[class="span4 ng-pristine ng-valid"]').click()
+            self.browser.find_by_css('select[class="span4 ng-pristine ng-valid"]').click()
+            
+            selector = self.unit_dict[unit]     # reference unit_dict to find number of DOWN ARROW keys to send
+            for i in range(selector):
+                active = self.browser.driver.switch_to.active_element
+                active.send_keys(Keys.ARROW_DOWN)
+            active.send_keys(Keys.ENTER)
+            active.send_keys(Keys.TAB)
+            active = self.browser.driver.switch_to.active_element
+            active.send_keys(Keys.ENTER)
+
+            # reason 
+            self.browser.find_by_css('select[class="span5 ng-pristine ng-valid"]').click()
+            active = self.browser.driver.switch_to.active_element
+
+            selector = self.reason_dict[reason]     # reference reason_dict to find number of DOWN ARROW keys to send
+
+            for i in range(selector): 
+                active = self.browser.driver.switch_to.active_element
+                active.send_keys(Keys.ARROW_DOWN)
+            active.send_keys(Keys.ENTER)
+            active.send_keys(Keys.TAB)
+            active = self.browser.driver.switch_to.active_element
+            active.send_keys(Keys.ENTER)
+
+            # note
+            self.browser.find_by_css('input[ng-model="template.ReasonNote"]').fill(reason_note)
+            active = self.browser.driver.switch_to.active_element
+            active.send_keys(Keys.TAB)
+            active = self.browser.driver.switch_to.active_element
+            active.send_keys(Keys.ENTER)
+
+            # today's date
+            self.browser.find_by_text('today').click()
+            active = self.browser.driver.switch_to.active_element
+            active.send_keys(Keys.TAB)
+            active = self.browser.driver.switch_to.active_element
+            active.send_keys(Keys.ENTER)
         
-        selector = self.unit_dict[unit]     # reference unit_dict to find number of DOWN ARROW keys to send
-        for i in range(selector):
+        else: # only one tag's info to fill
+
+            # reason 
+            self.browser.find_by_css('select[class="validate[required] ng-pristine ng-invalid ng-invalid-required"]').click()
+            selector = self.reason_dict[reason]
+            for i in range(selector):
+                active = self.browser.driver.switch_to.active_element
+                active.send_keys(Keys.ARROW_DOWN)
+            active.send_keys(Keys.ENTER)
+
+            # move to reason note textbox
+            active.send_keys(Keys.TAB)
             active = self.browser.driver.switch_to.active_element
-            active.send_keys(Keys.ARROW_DOWN)
-        active.send_keys(Keys.ENTER)
-        active.send_keys(Keys.TAB)
-        active = self.browser.driver.switch_to.active_element
-        active.send_keys(Keys.ENTER)
 
-        # reason 
-        self.browser.find_by_css('select[class="span5 ng-pristine ng-valid"]').click()
-        active = self.browser.driver.switch_to.active_element
+            # fill note
+            active.send_keys(reason_note)
 
-        selector = self.reason_dict[reason]     # reference reason_dict to find number of DOWN ARROW keys to send
+            # click today's date button
+            self.browser.find_by_text('today')[2].click()
 
-        for i in range(selector): 
-            active = self.browser.driver.switch_to.active_element
-            active.send_keys(Keys.ARROW_DOWN)
-        active.send_keys(Keys.ENTER)
-        active.send_keys(Keys.TAB)
-        active = self.browser.driver.switch_to.active_element
-        active.send_keys(Keys.ENTER)
+            
 
-        # note
-        self.browser.find_by_css('input[ng-model="template.ReasonNote"]').fill(reason_note)
-        active = self.browser.driver.switch_to.active_element
-        active.send_keys(Keys.TAB)
-        active = self.browser.driver.switch_to.active_element
-        active.send_keys(Keys.ENTER)
-
-        # today's date
-        self.browser.find_by_text('today').click()
-        active = self.browser.driver.switch_to.active_element
-        active.send_keys(Keys.TAB)
-        active = self.browser.driver.switch_to.active_element
-        active.send_keys(Keys.ENTER)
         for i in range(len(tags)):
             # package textbox
             self.browser.find_by_css(f'input[class="js-validated-element js-typeaheadsearchorder-{i} validate[required]"]').fill(tags[i])
             self.browser.driver.switch_to.active_element.send_keys(Keys.ENTER)
             
             # new quantity text box
-            self.browser.find_by_css(f'input[name="model[{i}][NewQuantity]"]').fill(new_amount)
+            self.browser.find_by_css(f'input[name="model[{i}][NewQuantity]"]').fill(new_amounts[i])
 
         # get user confirmation
-        input("Please Submit or Cancel on Metrc")
+        input("Please Submit or Cancel on Metrc, then press enter. ")
         #####################################
         # adjust_multi needed functionality #
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -786,32 +811,9 @@ print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # test class methods
 ####################
-#abc1_tags = [13475, 13437, 13435, 13439, 13479, 13450, 13453, 13455, 13458, 13468, 13469, 5308, 5309]
-#res = []
-#[res.append(x) for x in abc1_tags if x not in res]
-#metrc_man.new_package_multi_in(res, "ABC1, Post-E")
-
-tags = [23696, 23697, 24321, 24269, 24295, 24578, 24299, 24264, 24265, 24588, 24589, 24585, 24681, 24683, 24322, 24329, 24196, 24121, 24307, 24297, 24298, 24038, 24119, 24197, 24080, 24081, 24117, 24622, 24118, 22974, 22863, 22973, 22972, 22852, 22859, 24199, 24017, 22858, 22856, 22975, 22857, 22855, 23695, 23694, 24036, 24037, 24198, 24120]
-
-print(f'LENGHT OF TAGS = {len(tags)}')
-
-abcs = metrc_man.abc1_search(tags)
-
-abc_tags = []
-strains = []
-weights = []
-for v in abcs:
-    abc_tags.append(v[0])
-    strains.append(v[1])
-    weights.append(v[2])
-
-abc_df = pd.DataFrame({
-    "Tags" : abc_tags,
-    "Item" : strains,
-    "Weight (g)" : weights
-})
-
-abc_df.to_csv("abc1_strains.csv")
+tags = [24620,25509, 25506, 25507]
+amounts = [1, 2, 3, 69]
+metrc_man.adjust_multi(tags, amounts, "Grams", "In-House Quality Control", "A reason")
 
 
 print("PROGRAM ENDING IN 15 secs")
