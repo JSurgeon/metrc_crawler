@@ -478,7 +478,7 @@ class Metrc_Manager:
         '''
         for i in range(len(tags)):
             self.tag_search(tags[i])
-            prod_name = self.grab_info()["item"] + ' 220208'
+            prod_name = self.grab_info()["item"] + ' 220301'
             self.new_package(tags[i], amount, loc, prod_batch = prod_name)
         return 1
 
@@ -621,7 +621,7 @@ class Metrc_Manager:
         self.browser.driver.switch_to.active_element.send_keys(Keys.TAB)
 
         # SELECT UNIT --> NEEDS TO BE DYNAMIC (ONLY SELECTS GRAMS NOW)
-        for i in range(11):
+        for i in range(4):
         # click ARROW_DOWN 11 times
             self.browser.driver.switch_to.active_element.send_keys(Keys.ARROW_DOWN)
         # click TAB
@@ -811,9 +811,8 @@ print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # test class methods
 ####################
-tags = [24620,25509, 25506, 25507]
-amounts = [1, 2, 3, 69]
-metrc_man.adjust_multi(tags, amounts, "Grams", "In-House Quality Control", "A reason")
+tags = [6554, 6549, 6552]
+metrc_man.waste_tags_multiple_packages(tags, "Cura, Post-Extraction")
 
 
 print("PROGRAM ENDING IN 15 secs")
